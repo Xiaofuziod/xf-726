@@ -1,0 +1,7 @@
+### docker镜像构建
+docker build -t vue-carousel-static .
+### 推送镜像到指定的docker仓库
+...
+
+### 在云服务器拉去镜像，并启动
+

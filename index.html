@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>气象数据轮播 - Vue 3</title>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<style>
+  body {
+    margin: 0; 
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+  #app {
+    padding: 24px;
+    border-radius: 16px;
+    max-width: 700px;
+    width: 90vw;
+    text-align: center;
+  }
+  img {
+    width: 100%;
+    max-height: 450px;
+    border-radius: 12px;
+    object-fit: contain;
+  }
+  .time-label {
+    margin: 16px 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 30px;
+    gap: 12px;
+  }
+  button {
+    background: #764ba2;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color 0.3s ease;
+    user-select: none;
+  }
+  button:hover {
+    background: #8e5db9;
+  }
+  button:disabled {
+    background: #4a3d66;
+    cursor: not-allowed;
+  }
+  input[type=range] {
+    flex-grow: 1;
+    height: 6px;
+    border-radius: 8px;
+    -webkit-appearance: none;
+    background: #5a4b94;
+    cursor: pointer;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background: #e2d7f0;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+    transition: background-color 0.3s ease;
+  }
+  input[type=range]:hover::-webkit-slider-thumb {
+    background: #f7f0ff;
+  }
+  .footer-info {
+    margin-top: 14px;
+    font-size: 1rem;
+    color: #c7b9e0;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <img :src="currentImage" :alt="'Frame ' + currentFrame" loading="lazy" />
+  <div class="time-label">{{ currentTimeLabel }}</div>
+
+
+  <div class="controls" style="margin-top: 12px;">
+    <input
+      type="range"
+      :min="0"
+      :max="totalFrames - 1"
+      v-model="currentFrame"
+      @input="onSliderChange"
+    />
+  </div>
+
+  <div class="controls">
+    <button @click="prevFrame" :disabled="currentFrame === 0">◀ 前一帧</button>
+    <button @click="togglePlay">{{ isPlaying ? '暂停 ⏸' : '播放 ▶' }}</button>
+    
+    <button @click="nextFrame" :disabled="currentFrame === totalFrames - 1">后一帧 ▶</button>
+  </div>
+
+  
+
+  <div class="footer-info">
+    当前帧编号：{{ currentFrame + 1 }} / {{ totalFrames }}
+  </div>
+</div>
+
+<script>
+  const { createApp, ref, computed, watch, onMounted, onBeforeUnmount } = Vue;
+
+  createApp({
+    setup() {
+      const totalFrames = 265;
+      const currentFrame = ref(0);
+      const isPlaying = ref(true);
+      const startTime = new Date('2025-06-01T00:00:00');
+      let timer = null;
+
+      const currentImage = computed(() => {
+        const padded = String(currentFrame.value).padStart(3, '0');
+        return `images/frame_${padded}.png`;
+      });
+
+      const currentTimeLabel = computed(() => {
+        const dt = new Date(startTime.getTime() + currentFrame.value * 3600 * 1000);
+        return dt.toLocaleString('zh-CN', { hour12: false });
+      });
+
+      const preloadImage = (frame) => {
+        if (frame < 0 || frame >= totalFrames) return;
+        const img = new Image();
+        img.src = `images/frame_${String(frame).padStart(3, '0')}.png`;
+      };
+
+      const preloadAdjacentImages = () => {
+        preloadImage(currentFrame.value - 2);
+        preloadImage(currentFrame.value - 1);
+        preloadImage(currentFrame.value + 1);
+        preloadImage(currentFrame.value + 2);
+      };
+
+      const nextFrame = () => {
+        if (currentFrame.value < totalFrames - 1) {
+          currentFrame.value++;
+        } else {
+          isPlaying.value = false;
+          stopTimer();
+        }
+      };
+
+      const prevFrame = () => {
+        if (currentFrame.value > 0) {
+          currentFrame.value--;
+        }
+      };
+
+      const togglePlay = () => {
+        isPlaying.value = !isPlaying.value;
+        if (isPlaying.value) {
+          startTimer();
+        } else {
+          stopTimer();
+        }
+      };
+
+      const startTimer = () => {
+        stopTimer();
+        timer = setInterval(() => {
+          if (isPlaying.value) {
+            nextFrame();
+          }
+        }, 1000);
+      };
+
+      const stopTimer = () => {
+        if (timer) {
+          clearInterval(timer);
+          timer = null;
+        }
+      };
+
+      const onSliderChange = () => {
+        if (!isPlaying.value) return;
+        stopTimer();
+        startTimer();
+      };
+
+      watch(currentFrame, () => {
+        preloadAdjacentImages();
+      });
+
+      onMounted(() => {
+        preloadAdjacentImages();
+        startTimer();
+      });
+
+      onBeforeUnmount(() => {
+        stopTimer();
+      });
+
+      return {
+        totalFrames,
+        currentFrame,
+        isPlaying,
+        currentImage,
+        currentTimeLabel,
+        nextFrame,
+        prevFrame,
+        togglePlay,
+        onSliderChange,
+      };
+    },
+  }).mount('#app');
+</script>
+</body>
+</html>
